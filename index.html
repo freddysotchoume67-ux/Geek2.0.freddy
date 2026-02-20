@@ -1,0 +1,193 @@
+<meta name='viewport' content='width=device-width, initial-scale=1'/><!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>ETS – Plains ton cas</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+body{font-family:'Segoe UI',sans-serif;background:#f0f2f5;margin:0;padding:10px;}
+.container{max-width:1000px;margin:auto;background:#fff;padding:25px;border-radius:12px;box-shadow:0 10px 25px rgba(0,0,0,0.1);}
+h2{text-align:center;color:#c2185b;margin-bottom:20px;font-size:28px;font-weight:600;}
+input,select,button{width:100%;padding:12px;margin-top:10px;font-size:15px;border-radius:8px;border:1px solid #ccc;transition:0.3s;}
+input:focus,select:focus{border-color:#c2185b;outline:none;box-shadow:0 0 8px rgba(194,24,91,0.2);}
+button{background:#c2185b;color:white;border:none;cursor:pointer;font-weight:600;}
+button:hover{background:#a31747;}
+#decharge{margin-top:25px;padding:25px;border-radius:12px;display:none;background:#ffe6f0;box-shadow:0 5px 15px rgba(0,0,0,0.1);}
+canvas{border:1px solid #ccc;border-radius:8px;margin-top:10px;}
+.entete{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:15px;}
+.photo img{width:120px;height:140px;border-radius:10px;object-fit:cover;border:2px solid #c2185b;}
+.photo div{text-align:center;margin-top:5px;font-weight:bold;color:#333;}
+#qrcode{margin-top:8px;}
+#formulaire h3{margin-top:20px;color:#c2185b;}
+#resultats div{padding:8px;margin-top:5px;border-radius:6px;cursor:pointer;background:#f8d7da;color:#721c24;}
+#resultats div:hover{background:#f5c2c7;}
+</style>
+</head>
+<body>
+<div class="container">
+
+<h2>ETS – Plains ton cas</h2>
+
+<div id="loginScreen">
+  <h3>Connexion / Création utilisateur</h3>
+  <label>Nom et prénom :</label><input id="loginName">
+  <label>Téléphone :</label><input id="loginTel">
+  <label>Mot de passe :</label><input type="password" id="loginPass">
+  <h3>Signature du propriétaire</h3>
+  <canvas id="ownerSign" width="300" height="150"></canvas>
+  <button onclick="clearOwnerSign()">Effacer signature</button>
+  <button onclick="login()">Se connecter / Créer</button>
+</div>
+
+<div id="formulaire" style="display:none;">
+<label>Nom de l'emprunteur</label><input id="nom">
+<label>Téléphone de l'emprunteur</label><input id="tel">
+<label>Résidence de l'emprunteur</label><input id="residence">
+<label>Montant (F CFA)</label><input type="number" id="montant">
+<label>Produit</label>
+<select id="produit">
+<option value="">-- Choisir --</option>
+<option value="Soja">Soja (125 F/kg)</option>
+<option value="Acajou">Acajou (200 F/kg)</option>
+</select>
+<label>Photo de l'emprunteur</label><input type="file" id="photo" accept="image/*">
+<h3>Signature de l'emprunteur</h3>
+<canvas id="signE" width="300" height="150"></canvas>
+<button onclick="clearSignatureE()">Effacer signature</button>
+<label>Témoin de l'emprunteur</label><input id="temoinE">
+<label>Témoin du prêteur</label><input id="temoinP">
+<button onclick="generer()">Générer / Mettre à jour la décharge</button>
+
+<h3>Rechercher une décharge</h3>
+<input id="search" placeholder="Nom ou numéro">
+<button onclick="rechercher()">Rechercher</button>
+<div id="resultats"></div>
+</div>
+
+<div id="decharge"></div>
+<button onclick="exportPDF()">Enregistrer en PDF</button>
+<button onclick="logout()">Se déconnecter</button>
+
+</div>
+
+<script>
+// --- Canvas signature propriétaire et emprunteur ---
+let canvasOwner = document.getElementById("ownerSign"), ctxOwner = canvasOwner.getContext("2d"), drawingOwner=false;
+canvasOwner.onmousedown=()=>drawingOwner=true;canvasOwner.onmouseup=()=>{drawingOwner=false;ctxOwner.beginPath();}
+canvasOwner.onmousemove=(e)=>{if(drawingOwner){ctxOwner.lineTo(e.offsetX,e.offsetY);ctxOwner.stroke();ctxOwner.beginPath();ctxOwner.moveTo(e.offsetX,e.offsetY);}}
+canvasOwner.ontouchstart=(e)=>{drawingOwner=true;e.preventDefault();}
+canvasOwner.ontouchend=()=>{drawingOwner=false;ctxOwner.beginPath();}
+canvasOwner.ontouchmove=(e)=>{if(drawingOwner){let rect=canvasOwner.getBoundingClientRect();ctxOwner.lineTo(e.touches[0].clientX-rect.left,e.touches[0].clientY-rect.top);ctxOwner.stroke();ctxOwner.beginPath();ctxOwner.moveTo(e.touches[0].clientX-rect.left,e.touches[0].clientY-rect.top);}}
+function clearOwnerSign(){ctxOwner.clearRect(0,0,canvasOwner.width,canvasOwner.height);}
+
+let canvasE=document.getElementById("signE"), ctxE=canvasE.getContext("2d"), drawingE=false;
+canvasE.onmousedown=()=>drawingE=true;canvasE.onmouseup=()=>{drawingE=false;ctxE.beginPath();}
+canvasE.onmousemove=(e)=>{if(drawingE){ctxE.lineTo(e.offsetX,e.offsetY);ctxE.stroke();ctxE.beginPath();ctxE.moveTo(e.offsetX,e.offsetY);}}
+canvasE.ontouchstart=(e)=>{drawingE=true;e.preventDefault();}
+canvasE.ontouchend=()=>{drawingE=false;ctxE.beginPath();}
+canvasE.ontouchmove=(e)=>{if(drawingE){let rect=canvasE.getBoundingClientRect();ctxE.lineTo(e.touches[0].clientX-rect.left,e.touches[0].clientY-rect.top);ctxE.stroke();ctxE.beginPath();ctxE.moveTo(e.touches[0].clientX-rect.left,e.touches[0].clientY-rect.top);}}
+function clearSignatureE(){ctxE.clearRect(0,0,canvasE.width,canvasE.height);}
+
+// --- Multi-utilisateurs ---
+let users = JSON.parse(localStorage.getItem("ets_users")||"[]"), currentUser = null;
+
+function login(){
+  let name = document.getElementById("loginName").value.trim();
+  let tel = document.getElementById("loginTel").value.trim();
+  let pass = document.getElementById("loginPass").value.trim();
+  if(!name || !tel || !pass){alert("Remplir tous les champs"); return;}
+  if(canvasOwner.toDataURL()=="data:,"){alert("Veuillez signer"); return;}
+  let exist = users.find(u=>u.name===name);
+  if(exist){
+    if(exist.password!==pass){alert("Mot de passe incorrect"); return;}
+    currentUser = exist;
+  }else{
+    currentUser={name,tel,password:pass,signature:canvasOwner.toDataURL(),decharges:[],counter:0};
+    users.push(currentUser);
+    localStorage.setItem("ets_users",JSON.stringify(users));
+  }
+  document.getElementById("loginScreen").style.display="none";
+  document.getElementById("formulaire").style.display="block";
+}
+
+// --- Déconnexion ---
+function logout(){currentUser=null;document.getElementById("formulaire").style.display="none";document.getElementById("loginScreen").style.display="block";}
+
+// --- Génération décharge ---
+function generer(){
+  if(!currentUser){alert("Connectez-vous"); return;}
+  let nom=document.getElementById("nom").value.trim();
+  let tel=document.getElementById("tel").value.trim();
+  let residence=document.getElementById("residence").value.trim();
+  let montant=parseFloat(document.getElementById("montant").value);
+  let produit=document.getElementById("produit").value;
+  let temoinE=document.getElementById("temoinE").value.trim();
+  let temoinP=document.getElementById("temoinP").value.trim();
+  let photoFile=document.getElementById("photo").files[0];
+  if(!nom||!tel||!residence||!montant||!produit||!temoinE||!temoinP||!photoFile){alert("Remplir tous les champs et photo"); return;}
+  let prixKg=produit==="Soja"?125:200;
+  let quantite=(montant/prixKg).toFixed(2);
+  let date=new Date().toLocaleDateString("fr-FR");
+  let reader=new FileReader();
+  reader.onload=()=>{
+    let exist=currentUser.decharges.find(d=>d.nom===nom && d.produit===produit);
+    if(exist){
+      exist.montant+=montant;
+      exist.quantite=(parseFloat(exist.quantite)+parseFloat(quantite)).toFixed(2);
+      exist.date=date; exist.tel=tel; exist.residence=residence;
+      exist.temoinE=temoinE; exist.temoinP=temoinP; exist.photo=reader.result;
+    }else{
+      currentUser.counter++; exist={numero:currentUser.counter,nom,tel,residence,produit,montant,quantite,temoinE,temoinP,photo:reader.result,date};
+      currentUser.decharges.push(exist);
+    }
+    users = users.map(u=>u.name===currentUser.name?currentUser:u);
+    localStorage.setItem("ets_users",JSON.stringify(users));
+    afficher(exist);
+  }
+  reader.readAsDataURL(photoFile);
+}
+
+// --- Affichage ---
+function afficher(d){
+  document.getElementById("decharge").style.display="block";
+  document.getElementById("decharge").innerHTML=`
+  <div id="pdf">
+  <div class="entete">
+  <div class="photo"><img src="${d.photo}"><div>${d.tel}</div></div>
+  <div><strong>N° ${d.numero}</strong><div id="qrcode"></div></div>
+  </div><br>
+  <strong>DÉCHARGE DE PRÊT AGRICOLE</strong><br><br>
+  Je soussigné(e) ${d.nom}, téléphone ${d.tel}, résidant à ${d.residence},<br>
+  déclare avoir reçu de Monsieur ${currentUser.name} la somme de ${d.montant} Francs CFA.<br><br>
+  Je m'engage à rembourser cette somme en nature, sous forme de ${d.produit},<br>
+  au prix de ${prixKg} F/kg, soit ${d.quantite} kg,<br>
+  avant la fin des récoltes.<br><br>
+  En cas de non-respect de la présente décharge,<br>je serai poursuivi(e) par la police judiciaire.<br><br>
+  Fait à Nagayilé, le ${d.date}.<br><br>
+  Signature de l'emprunteur :<br><img src="${canvasE.toDataURL()}" height="70"><br>
+  Signature du propriétaire :<br><img src="${currentUser.signature}" height="70"><br>
+  Témoin de l'emprunteur : ${d.temoinE}<br>
+  Témoin du prêteur : ${d.temoinP}
+  </div>`;
+  new QRCode(document.getElementById("qrcode"),"ETS-"+d.numero);
+}
+
+// --- PDF ---
+function exportPDF(){
+  let element=document.getElementById("pdf");
+  html2pdf().from(element).set({margin:10,filename:"decharge_ETS.pdf",html2canvas:{scale:2},jsPDF:{unit:'mm',format:'a4'}}).save();
+}
+
+// --- Recherche ---
+function rechercher(){
+  let q=document.getElementById("search").value.toLowerCase();
+  let res=currentUser.decharges.filter(d=>d.nom.toLowerCase().includes(q)||d.numero.toString()===q);
+  let html="";if(res.length===0){html="Aucune décharge trouvée";}
+  else{html=res.map(d=>`<div onclick='afficher(${d.numero})'>Décharge N° ${d.numero} – ${d.nom} (${d.produit})</div>`).join("");}
+  document.getElementById("resultats").innerHTML=html;
+}
+</script>
+</body>
+</html>
